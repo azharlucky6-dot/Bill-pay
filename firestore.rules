@@ -1,0 +1,280 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny everything not explicitly matched
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL PRIMITIVES ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isValidCategory(cat) {
+      return cat in ['ELECTRICITY', 'CREDIT_CARD', 'POSTPAID', 'PREPAID', 'FASTAG'];
+    }
+
+    // Enforces Zero Raw PANs invariant: rejects unmasked 13-19 digit card numbers
+    function isNotRawPan(val) {
+      return val is string && val.size() >= 4 && val.size() <= 32 && !val.matches('^[0-9\\s\\-]{13,23}$');
+    }
+
+    // --- ENTITY VALIDATION BLUEPRINTS ---
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+               'userId', 'displayName', 'email', 'termsAccepted', 'termsVersion',
+               'screenShieldEnabled', 'biometricConfirmEnabled', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'displayName', 'email', 'termsAccepted', 'termsVersion',
+               'screenShieldEnabled', 'biometricConfirmEnabled', 'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId == userId &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             data.email is string && data.email.size() <= 120 &&
+             data.termsAccepted is bool &&
+             data.termsVersion is string && data.termsVersion.size() <= 20 &&
+             data.screenShieldEnabled is bool &&
+             data.biometricConfirmEnabled is bool &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidSavedBiller(data, userId) {
+      return data.keys().hasAll([
+               'userId', 'category', 'providerName', 'billerCode', 'nickname',
+               'maskedIdentifier', 'lastBillAmountPaise', 'dueDayOfMonth',
+               'autopayReminder', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'category', 'providerName', 'billerCode', 'nickname',
+               'maskedIdentifier', 'lastBillAmountPaise', 'dueDayOfMonth',
+               'autopayReminder', 'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId == userId &&
+             isValidCategory(data.category) &&
+             data.providerName is string && data.providerName.size() >= 2 && data.providerName.size() <= 80 &&
+             data.billerCode is string && data.billerCode.size() >= 2 && data.billerCode.size() <= 40 &&
+             data.nickname is string && data.nickname.size() >= 1 && data.nickname.size() <= 60 &&
+             isNotRawPan(data.maskedIdentifier) &&
+             data.lastBillAmountPaise is int && data.lastBillAmountPaise >= 0 && data.lastBillAmountPaise <= 100000000 &&
+             data.dueDayOfMonth is int && data.dueDayOfMonth >= 1 && data.dueDayOfMonth <= 31 &&
+             data.autopayReminder is bool &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidBillTransaction(data, userId) {
+      return data.keys().hasAll([
+               'userId', 'billerId', 'category', 'providerName', 'maskedIdentifier',
+               'amountPaise', 'convenienceFeePaise', 'paymentRail', 'tokenRef',
+               'bbpsRefId', 'status', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'billerId', 'category', 'providerName', 'maskedIdentifier',
+               'amountPaise', 'convenienceFeePaise', 'paymentRail', 'tokenRef',
+               'bbpsRefId', 'status', 'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId == userId &&
+             data.billerId is string && data.billerId.size() >= 1 && data.billerId.size() <= 128 &&
+             isValidCategory(data.category) &&
+             data.providerName is string && data.providerName.size() >= 2 && data.providerName.size() <= 80 &&
+             isNotRawPan(data.maskedIdentifier) &&
+             data.amountPaise is int && data.amountPaise >= 100 && data.amountPaise <= 100000000 &&
+             data.convenienceFeePaise is int && data.convenienceFeePaise >= 0 && data.convenienceFeePaise <= 50000 &&
+             data.paymentRail in ['UPI_INTENT', 'TOKENIZED_PA'] &&
+             data.tokenRef is string && data.tokenRef.size() >= 4 && data.tokenRef.size() <= 64 &&
+             data.bbpsRefId is string && data.bbpsRefId.size() >= 6 && data.bbpsRefId.size() <= 40 &&
+             data.status in ['SETTLED', 'PENDING_SETTLEMENT', 'REFUND_INITIATED', 'REFUNDED'] &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidGrievanceTicket(data, userId) {
+      return data.keys().hasAll([
+               'userId', 'transactionId', 'bbpsRefId', 'complaintRef', 'reason',
+               'notes', 'slaWindow', 'status', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'transactionId', 'bbpsRefId', 'complaintRef', 'reason',
+               'notes', 'slaWindow', 'status', 'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId == userId &&
+             isValidId(data.transactionId) &&
+             data.bbpsRefId is string && data.bbpsRefId.size() >= 6 && data.bbpsRefId.size() <= 40 &&
+             data.complaintRef is string && data.complaintRef.size() >= 6 && data.complaintRef.size() <= 40 &&
+             data.reason in ['DEBITED_NOT_UPDATED', 'DUPLICATE_PAYMENT', 'WRONG_BILLER_CREDIT', 'REFUND_DELAYED'] &&
+             data.notes is string && data.notes.size() <= 400 &&
+             data.slaWindow is string && data.slaWindow.size() >= 2 && data.slaWindow.size() <= 40 &&
+             data.status in ['OPEN', 'ESCALATED', 'RESOLVED'] &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    // --- USER PROFILE & SECURITY PREFERENCES ---
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         // Action 1: Accept Terms and Conditions
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['termsAccepted', 'termsVersion', 'updatedAt']) &&
+                           incoming().termsAccepted == true &&
+                           incoming().termsVersion.size() >= 2
+                         ) ||
+                         // Action 2: Update Security Preferences
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['screenShieldEnabled', 'biometricConfirmEnabled', 'updatedAt'])
+                         ) ||
+                         // Action 3: Sync Display Name / Email
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'updatedAt'])
+                         )
+                       );
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // --- SAVED BILLERS SUBCOLLECTION ---
+      match /billers/{billerId} {
+        allow get: if isOwner(userId) && isValidId(billerId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(billerId) &&
+                         isValidSavedBiller(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(billerId) &&
+                         isValidSavedBiller(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         (
+                           // Action 1: Update biller metadata & reminder
+                           incoming().diff(existing()).affectedKeys().hasOnly(['nickname', 'lastBillAmountPaise', 'dueDayOfMonth', 'autopayReminder', 'updatedAt']) ||
+                           // Action 2: Refresh fetched bill amount
+                           incoming().diff(existing()).affectedKeys().hasOnly(['lastBillAmountPaise', 'updatedAt'])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(billerId);
+      }
+
+      // --- BILL PAYMENT TRANSACTIONS SUBCOLLECTION ---
+      match /transactions/{txId} {
+        allow get: if isOwner(userId) && isValidId(txId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(txId) &&
+                         isValidBillTransaction(incoming(), userId) &&
+                         incoming().status in ['SETTLED', 'PENDING_SETTLEMENT'];
+
+        allow update: if isOwner(userId) &&
+                         isValidId(txId) &&
+                         isValidBillTransaction(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         // Terminal State Locking: REFUNDED is final
+                         existing().status != 'REFUNDED' &&
+                         (
+                           // Action 1: Pending transaction settles
+                           (
+                             existing().status == 'PENDING_SETTLEMENT' &&
+                             incoming().status == 'SETTLED' &&
+                             incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+                           ) ||
+                           // Action 2: Initiate T+1 to T+5 auto-refund on failed/disputed payment
+                           (
+                             existing().status in ['PENDING_SETTLEMENT', 'SETTLED'] &&
+                             incoming().status == 'REFUND_INITIATED' &&
+                             incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+                           ) ||
+                           // Action 3: Complete auto-refund settlement
+                           (
+                             existing().status == 'REFUND_INITIATED' &&
+                             incoming().status == 'REFUNDED' &&
+                             incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+                           )
+                         );
+
+        // Transactions are financial audit records and cannot be deleted
+        allow delete: if false;
+      }
+
+      // --- GRIEVANCE / DISPUTE TICKETS SUBCOLLECTION ---
+      match /grievances/{ticketId} {
+        allow get: if isOwner(userId) && isValidId(ticketId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(ticketId) &&
+                         isValidGrievanceTicket(incoming(), userId) &&
+                         incoming().status == 'OPEN' &&
+                         exists(/databases/$(database)/documents/users/$(userId)/transactions/$(incoming().transactionId));
+
+        allow update: if isOwner(userId) &&
+                         isValidId(ticketId) &&
+                         isValidGrievanceTicket(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().transactionId == existing().transactionId &&
+                         incoming().createdAt == existing().createdAt &&
+                         // Terminal State Locking: RESOLVED is final
+                         existing().status != 'RESOLVED' &&
+                         (
+                           // Action 1: Update dispute notes while open/escalated
+                           (
+                             incoming().status == existing().status &&
+                             incoming().diff(existing()).affectedKeys().hasOnly(['notes', 'updatedAt'])
+                           ) ||
+                           // Action 2: Escalate OPEN ticket to Nodal/RBI Ombudsman tier
+                           (
+                             existing().status == 'OPEN' &&
+                             incoming().status == 'ESCALATED' &&
+                             incoming().diff(existing()).affectedKeys().hasOnly(['status', 'notes', 'updatedAt'])
+                           ) ||
+                           // Action 3: Mark ticket RESOLVED
+                           (
+                             existing().status in ['OPEN', 'ESCALATED'] &&
+                             incoming().status == 'RESOLVED' &&
+                             incoming().diff(existing()).affectedKeys().hasOnly(['status', 'notes', 'updatedAt'])
+                           )
+                         );
+
+        allow delete: if false;
+      }
+    }
+  }
+}

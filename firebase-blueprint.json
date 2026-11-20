@@ -1,0 +1,287 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated BillRail user profile, T&C legal consent state, and client security preferences.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name from Google Sign-In."
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address."
+        },
+        "termsAccepted": {
+          "type": "boolean",
+          "description": "Whether the user has accepted the Indian BillRail Terms and Conditions."
+        },
+        "termsVersion": {
+          "type": "string",
+          "description": "Accepted Terms and Conditions version identifier (e.g., v1.0-IN)."
+        },
+        "screenShieldEnabled": {
+          "type": "boolean",
+          "description": "Whether FLAG_SECURE screenshot protection is enabled."
+        },
+        "biometricConfirmEnabled": {
+          "type": "boolean",
+          "description": "Whether device lock / biometric check before bill payment is enabled."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the profile was created (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest profile update (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "email",
+        "termsAccepted",
+        "termsVersion",
+        "screenShieldEnabled",
+        "biometricConfirmEnabled",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SavedBiller": {
+      "title": "SavedBiller",
+      "description": "A user-saved BBPS biller with masked identifier (never stores raw card PAN or CVV).",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["ELECTRICITY", "CREDIT_CARD", "POSTPAID", "PREPAID", "FASTAG"],
+          "description": "BBPS biller category."
+        },
+        "providerName": {
+          "type": "string",
+          "description": "Biller provider name (e.g., BESCOM, HDFC Bank Credit Card)."
+        },
+        "billerCode": {
+          "type": "string",
+          "description": "NPCI Bharat Connect / BBPOU biller identifier."
+        },
+        "nickname": {
+          "type": "string",
+          "description": "User-chosen short label for the biller."
+        },
+        "maskedIdentifier": {
+          "type": "string",
+          "description": "Consumer ID, mobile number, vehicle registration, or masked last-4 card digits. Raw PANs are prohibited."
+        },
+        "lastBillAmountPaise": {
+          "type": "integer",
+          "description": "Latest fetched or expected bill amount in INR paise."
+        },
+        "dueDayOfMonth": {
+          "type": "integer",
+          "description": "Expected monthly due day (1-31)."
+        },
+        "autopayReminder": {
+          "type": "boolean",
+          "description": "Whether due-date reminders are enabled for this biller."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when saved (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last modification (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "category",
+        "providerName",
+        "billerCode",
+        "nickname",
+        "maskedIdentifier",
+        "lastBillAmountPaise",
+        "dueDayOfMonth",
+        "autopayReminder",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BillTransaction": {
+      "title": "BillTransaction",
+      "description": "Record of a regulated BBPS / UPI Intent or Tokenized Payment Aggregator bill payment.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID."
+        },
+        "billerId": {
+          "type": "string",
+          "description": "Saved biller document ID or 'direct' for one-off payments."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["ELECTRICITY", "CREDIT_CARD", "POSTPAID", "PREPAID", "FASTAG"],
+          "description": "BBPS biller category."
+        },
+        "providerName": {
+          "type": "string",
+          "description": "Biller provider name."
+        },
+        "maskedIdentifier": {
+          "type": "string",
+          "description": "Masked consumer/vehicle/card identifier."
+        },
+        "amountPaise": {
+          "type": "integer",
+          "description": "Principal bill payment amount in INR paise."
+        },
+        "convenienceFeePaise": {
+          "type": "integer",
+          "description": "Regulated convenience fee in INR paise (0 for UPI)."
+        },
+        "paymentRail": {
+          "type": "string",
+          "enum": ["UPI_INTENT", "TOKENIZED_PA"],
+          "description": "Regulated checkout rail used."
+        },
+        "tokenRef": {
+          "type": "string",
+          "description": "UPI reference or RBI tokenized PA reference; never a raw card PAN."
+        },
+        "bbpsRefId": {
+          "type": "string",
+          "description": "BBPS B-Assured transaction reference number."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["SETTLED", "PENDING_SETTLEMENT", "REFUND_INITIATED", "REFUNDED"],
+          "description": "Settlement and auto-refund lifecycle status."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of transaction initiation (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest status update (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "billerId",
+        "category",
+        "providerName",
+        "maskedIdentifier",
+        "amountPaise",
+        "convenienceFeePaise",
+        "paymentRail",
+        "tokenRef",
+        "bbpsRefId",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "GrievanceTicket": {
+      "title": "GrievanceTicket",
+      "description": "BBPS / RBI dispute and T+1 to T+5 auto-refund tracking ticket linked to a transaction.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID."
+        },
+        "transactionId": {
+          "type": "string",
+          "description": "Document ID of the associated BillTransaction."
+        },
+        "bbpsRefId": {
+          "type": "string",
+          "description": "Associated BBPS transaction reference ID."
+        },
+        "complaintRef": {
+          "type": "string",
+          "description": "Bharat Connect / Grievance Officer complaint reference number."
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["DEBITED_NOT_UPDATED", "DUPLICATE_PAYMENT", "WRONG_BILLER_CREDIT", "REFUND_DELAYED"],
+          "description": "Standardized dispute reason category."
+        },
+        "notes": {
+          "type": "string",
+          "description": "User details or resolution notes."
+        },
+        "slaWindow": {
+          "type": "string",
+          "description": "Expected settlement/refund SLA window (T+1 to T+5 Business Days)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["OPEN", "ESCALATED", "RESOLVED"],
+          "description": "Grievance lifecycle state."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when complaint was raised (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest complaint update (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "transactionId",
+        "bbpsRefId",
+        "complaintRef",
+        "reason",
+        "notes",
+        "slaWindow",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile, T&C consent ledger, and client security configuration."
+    },
+    "/users/{userId}/billers/{billerId}": {
+      "schema": { "$ref": "#/entities/SavedBiller" },
+      "description": "User-owned saved BBPS billers with zero raw PAN storage."
+    },
+    "/users/{userId}/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/BillTransaction" },
+      "description": "User-owned BBPS and UPI/Tokenized PA bill payment receipts."
+    },
+    "/users/{userId}/grievances/{ticketId}": {
+      "schema": { "$ref": "#/entities/GrievanceTicket" },
+      "description": "User-owned BBPS dispute and T+1 to T+5 refund tracking tickets."
+    }
+  }
+}

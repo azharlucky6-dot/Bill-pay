@@ -1,0 +1,6 @@
+{
+  "name": "BillRail",
+  "description": "Secure Indian bill payment app on BBPS and UPI rails with 4-layer security controls, biller management, tokenized checkout, refund tracking, grievance redressal, and Terms & Conditions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
